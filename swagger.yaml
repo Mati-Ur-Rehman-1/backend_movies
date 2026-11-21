@@ -1,0 +1,305 @@
+swagger: "2.0"
+info:
+  title: "My Movie API"
+  description: "API documentation for my Flask project"
+  version: "1.0.0"
+host: "192.168.100.135:5000"
+basePath: "/"
+schemes:
+  - http
+paths:
+  /auth/login:
+    post:
+      summary: "Login user"
+      tags:
+        - Auth
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            properties:
+              email:
+                type: string
+                example: "ali@gmail.com"
+              password:
+                type: string
+                example: "123456"
+      responses:
+        200:
+          description: "Login successful"
+        400:
+          description: "Email and password are required"
+        401:
+          description: "Invalid credentials"
+        500:
+          description: "Unable to complete login"
+
+
+  /auth/signup:
+    post:
+      summary: "Register new user"
+      tags:
+        - Auth
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            properties:
+              name:
+                type: string
+                example: "Ali"
+              email:
+                type: string
+                example: "ali@gmail.com"
+              password:
+                type: string
+                example: "123456"
+      responses:
+        201:
+          description: "Signup successful"
+        400:
+          description: "Email and password are required"
+        409:
+          description: "try another email"
+        500:
+          description: "Unable to complete signup"
+
+  /auth/logout:
+    post:
+      summary: "Logout user"
+      tags:
+        - Auth
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          type: string
+          example: "Bearer your_access_token"
+      responses:
+        200:
+          description: "Logout successful"
+        401:
+          description: "Unauthorized (missing, expired, or revoked token)"
+        422:
+          description: "Invalid Authorization header or wrong token type"
+        500:
+          description: "Unable to logout"
+
+  /auth/refresh:
+    post:
+      summary: "Get new access token"
+      tags:
+        - Auth
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          type: string
+          example: "Bearer your_refresh_token"
+        - in: header
+          name: X-Access-Token
+          required: false
+          type: string
+          example: "Bearer your_expired_access_token"
+      responses:
+        200:
+          description: "New access token returned"
+        401:
+          description: "Unable to refresh token"
+
+  /auth/forget:
+    post:
+      summary: "Change password"
+      tags:
+        - Auth
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            properties:
+              email:
+                type: string
+                example: "ali@gmail.com"
+              current_password:
+                type: string
+                example: "oldpassword123"
+              password:
+                type: string
+                example: "newpassword123"
+            required:
+              - email
+              - current_password
+              - password
+      responses:
+        200:
+          description: "Password updated successfully"
+        400:
+          description: "Email, current password and new password are required"
+        401:
+          description: "incorrect current password"
+        409:
+          description: "email user not found"
+        500:
+          description: "Unable to reset password"
+
+
+  /movies/:
+    get:
+      summary: "Get movies"
+      tags:
+        - Movies
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          type: string
+          example: "Bearer your_access_token"
+        - in: query
+          name: id
+          required: false
+          type: integer
+          example: 10
+        - in: query
+          name: include
+          required: false
+          type: string
+          enum:
+            - actors
+          example: "actors"
+        - in: query
+          name: limit
+          required: false
+          type: integer
+          example: 20
+      responses:
+        200:
+          description: "Movies returned successfully"
+        401:
+          description: "Unauthorized (missing, expired, or revoked token)"
+        404:
+          description: "Movie not found"
+        422:
+          description: "Invalid Authorization header or wrong token type"
+        500:
+          description: "A database error occurred or an unexpected error occurred"
+
+  /movies/recommendation:
+    post:
+      summary: "Get movie recommendations"
+      description: "Get recommendations by movie ID (similar movies) or by chat message (RAG based). Send only one at a time."
+      tags:
+        - Movies
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          type: string
+          example: "Bearer your_access_token"
+        - in: query
+          name: id
+          required: false
+          type: integer
+          example: 10
+        - in: body
+          name: body
+          required: false
+          schema:
+            properties:
+              user_message:
+                type: string
+                example: "I want to watch a scary horror movie"
+      responses:
+        200:
+          description: 'Recommendations returned successfully; when neither id nor user_message is provided, returns "Please enter message or movie_id"'
+        401:
+          description: "Unauthorized (missing, expired, or revoked token)"
+        404:
+          description: "Movie not found or No recommendation found"
+        422:
+          description: "Invalid Authorization header or wrong token type"
+        429:
+          description: "AI service rate limit reached. Please try again later."
+        500:
+          description: "A database error occurred or an unexpected error occurred"
+        503:
+          description: "AI service authentication failed, AI service is currently unavailable, or Embedding service is currently unavailable"
+
+
+
+
+
+
+
+  /profile/:
+    get:
+      summary: "Get user profile"
+      tags:
+        - Profile
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          type: string
+          example: "Bearer your_access_token"
+      responses:
+        200:
+          description: "Profile fetched successfully"
+        401:
+          description: "Unauthorized (missing, expired, or revoked token)"
+        404:
+          description: "User not found"
+        422:
+          description: "Invalid Authorization header or wrong token type"
+        500:
+          description: "A database error occurred or an unexpected error occurred"
+
+    post:
+      summary: "Create or update profile"
+      tags:
+        - Profile
+      consumes:
+        - multipart/form-data
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          type: string
+          example: "Bearer your_access_token"
+        - in: formData
+          name: name
+          required: false
+          type: string
+          example: "Ali"
+        - in: formData
+          name: email
+          required: false
+          type: string
+          example: "ali@gmail.com"
+        - in: formData
+          name: phone
+          required: false
+          type: string
+          example: "0300-1234567"
+        - in: formData
+          name: location
+          required: false
+          type: string
+          example: "Lahore"
+        - in: formData
+          name: image
+          required: false
+          type: file
+      responses:
+        200:
+          description: "Profile updated successfully"
+        401:
+          description: "Unauthorized (missing, expired, or revoked token)"
+        404:
+          description: "User not found"
+        422:
+          description: "Invalid Authorization header or wrong token type"
+        500:
+          description: "Upload folder is not configured, Unable to update profile, or an unexpected error occurred"

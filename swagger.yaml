@@ -3,10 +3,12 @@ info:
   title: "My Movie API"
   description: "API documentation for my Flask project"
   version: "1.0.0"
-host: "192.168.100.135:5000"
+host: "127.0.0.1:5000"
 basePath: "/"
 schemes:
   - http
+produces:
+  - application/json
 paths:
   /auth/login:
     post:
@@ -161,6 +163,7 @@ paths:
           name: id
           required: false
           type: integer
+          description: "Return a single movie; filters and pagination are ignored"
           example: 10
         - in: query
           name: include
@@ -170,21 +173,74 @@ paths:
             - actors
           example: "actors"
         - in: query
-          name: limit
+          name: page
           required: false
           type: integer
+          description: "Page number, starting at 1"
+          default: 1
+          example: 2
+        - in: query
+          name: per_page
+          required: false
+          type: integer
+          description: "Items per page, default 20; values above 50 are capped at 50"
+          default: 20
           example: 20
+        - in: query
+          name: year
+          required: false
+          type: integer
+          description: "Exact release year"
+          example: 2024
+        - in: query
+          name: rating
+          required: false
+          type: integer
+          description: "Rating bucket, 0-10. rating=1 returns 1.0-1.9, rating=2 returns 2.0-2.9, and so on"
+          example: 8
+        - in: query
+          name: language
+          required: false
+          type: string
+          description: "Exact language code"
+          example: "en"
+        - in: query
+          name: quality
+          required: false
+          type: string
+          description: "Torrent quality, for example 720p, 1080p, 2160p"
+          example: "1080p"
+        - in: query
+          name: q
+          required: false
+          type: string
+          description: "Case-insensitive search in title and title_english"
+          example: "matrix"
       responses:
         200:
-          description: "Movies returned successfully"
+          description: "Paginated movie list. With ?id=, a single Movie object is returned instead"
+          schema:
+            $ref: "#/definitions/MoviePage"
+        400:
+          description: "Invalid query parameter"
+          schema:
+            $ref: "#/definitions/Error"
         401:
           description: "Unauthorized (missing, expired, or revoked token)"
+          schema:
+            $ref: "#/definitions/Error"
         404:
           description: "Movie not found"
+          schema:
+            $ref: "#/definitions/Error"
         422:
           description: "Invalid Authorization header or wrong token type"
+          schema:
+            $ref: "#/definitions/Error"
         500:
           description: "A database error occurred or an unexpected error occurred"
+          schema:
+            $ref: "#/definitions/Error"
 
   /movies/recommendation:
     post:
@@ -303,3 +359,164 @@ paths:
           description: "Invalid Authorization header or wrong token type"
         500:
           description: "Upload folder is not configured, Unable to update profile, or an unexpected error occurred"
+
+definitions:
+  Error:
+    type: object
+    properties:
+      message:
+        type: string
+        example: "Invalid query parameter"
+
+  MovieImage:
+    type: object
+    properties:
+      background_image:
+        type: string
+      background_image_original:
+        type: string
+      small_cover_image:
+        type: string
+      medium_cover_image:
+        type: string
+      large_cover_image:
+        type: string
+      medium_screenshot_image1:
+        type: string
+      medium_screenshot_image2:
+        type: string
+      medium_screenshot_image3:
+        type: string
+      large_screenshot_image1:
+        type: string
+      large_screenshot_image2:
+        type: string
+      large_screenshot_image3:
+        type: string
+
+  Torrent:
+    type: object
+    properties:
+      id:
+        type: integer
+      url:
+        type: string
+      hash:
+        type: string
+      quality:
+        type: string
+        example: "1080p"
+      type:
+        type: string
+      is_repack:
+        type: string
+      video_codec:
+        type: string
+      bit_depth:
+        type: string
+      audio_channels:
+        type: string
+      seeds:
+        type: integer
+      peers:
+        type: integer
+      size:
+        type: string
+      size_bytes:
+        type: integer
+        format: int64
+      date_uploaded:
+        type: string
+      date_uploaded_unix:
+        type: integer
+        format: int64
+
+  CastMember:
+    type: object
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+      character_name:
+        type: string
+      url_small_image:
+        type: string
+      imdb_code:
+        type: string
+
+  Movie:
+    type: object
+    properties:
+      id:
+        type: integer
+      yts_id:
+        type: integer
+      imdb_code:
+        type: string
+      title:
+        type: string
+      title_english:
+        type: string
+      slug:
+        type: string
+      year:
+        type: integer
+        example: 2024
+      rating:
+        type: number
+        format: float
+        example: 8.4
+      runtime:
+        type: integer
+      genres:
+        type: array
+        items:
+          type: string
+      description_full:
+        type: string
+      yt_trailer_code:
+        type: string
+      language:
+        type: string
+        example: "en"
+      mpa_rating:
+        type: string
+      date_uploaded:
+        type: string
+      date_uploaded_unix:
+        type: integer
+        format: int64
+      is_fetched:
+        type: boolean
+      images:
+        $ref: "#/definitions/MovieImage"
+      torrents:
+        type: array
+        items:
+          $ref: "#/definitions/Torrent"
+      cast:
+        type: array
+        description: "Present only when include=actors is used"
+        items:
+          $ref: "#/definitions/CastMember"
+
+  MoviePage:
+    type: object
+    properties:
+      page:
+        type: integer
+        example: 1
+      per_page:
+        type: integer
+        example: 20
+      total:
+        type: integer
+        example: 137
+      pages:
+        type: integer
+        example: 7
+      items:
+        type: array
+        items:
+          $ref: "#/definitions/Movie"

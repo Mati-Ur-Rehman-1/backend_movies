@@ -1,4 +1,5 @@
 from flask import Flask, send_from_directory
+from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flasgger import Swagger
 
@@ -11,6 +12,17 @@ from routes.profile import profile_bp
 
 
 app = Flask(__name__)
+CORS(
+    app,
+    origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://localhost:5174"
+    ],
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
+)
 app.config.from_object(Config)
 app.json.sort_keys = False
 

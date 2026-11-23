@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from models import Movie, Cast, MovieImage, Torrent
+from sqlalchemy import or_
+from sqlalchemy.orm import selectinload
 import ollama
 from ai.ai_helpers import (
     is_movie_related,
@@ -9,6 +11,10 @@ from ai.ai_helpers import (
 )
 
 movies_bp = Blueprint("movies", __name__, url_prefix="/movies")
+
+DEFAULT_PER_PAGE = 20
+MAX_PER_PAGE = 50
+
 
 def format_movie(movie, include_cast=False):
     images = None
@@ -81,27 +87,100 @@ def format_movie(movie, include_cast=False):
             }
             for c in movie.cast_members
         ]
-
     return data
+
+
+class InvalidQueryParam(ValueError):
+    pass
+
+
+def _parse_int(name, default=None, minimum=None, maximum=None):
+    raw = request.args.get(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise InvalidQueryParam(f"{name} must be an integer")
+    if minimum is not None and value < minimum:
+        raise InvalidQueryParam(f"{name} must be at least {minimum}")
+    if maximum is not None and value > maximum:
+        raise InvalidQueryParam(f"{name} must be at most {maximum}")
+    return value
+
+
+def _like_pattern(value):
+    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
 
 
 @movies_bp.route("/", methods=["GET"])
 @jwt_required()
 def show_movie():
-    movie_id = request.args.get("id", type=int)
-    include = request.args.get("include")
-    limit = request.args.get("limit", default=20, type=int)
-    include_cast = include in ("cast", "actors")
+    raw_id = request.args.get("id")
+    if raw_id is not None and raw_id != "":
+        try:
+            movie_id = int(raw_id)
+        except ValueError:
+            return jsonify({"message": "id must be an integer"}), 400
 
-
-    if movie_id:
+        include = request.args.get("include")
         movie = Movie.query.get(movie_id)
         if movie is None:
             return jsonify({"message": "Movie not found"}), 404
-        return jsonify(format_movie(movie, include_cast=include_cast))
+        return jsonify(format_movie(movie, include_cast=include in ("cast", "actors")))
 
-    movies = Movie.query.limit(limit).all()
-    return jsonify([format_movie(m, include_cast=include_cast) for m in movies])
+    try:
+        page = _parse_int("page", default=1, minimum=1)
+        per_page = _parse_int("per_page", default=DEFAULT_PER_PAGE, minimum=1)
+        per_page = min(per_page, MAX_PER_PAGE)
+        year = _parse_int("year")
+        rating = _parse_int("rating", minimum=0, maximum=10)
+    except InvalidQueryParam as e:
+        return jsonify({"message": str(e)}), 400
+
+    language = (request.args.get("language") or "").strip()
+    quality = (request.args.get("quality") or "").strip()
+    search = (request.args.get("q") or "").strip()
+    if len(search) > 200:
+        return jsonify({"message": "q must be at most 200 characters"}), 400
+
+    include = request.args.get("include")
+    include_cast = include in ("cast", "actors")
+
+    query = Movie.query
+    if year is not None:
+        query = query.filter(Movie.year == year)
+    if rating is not None:
+        query = query.filter(Movie.rating >= rating, Movie.rating < rating + 1)
+    if language:
+        query = query.filter(Movie.language == language)
+    if quality:
+        query = query.filter(Movie.torrents.any(Torrent.quality == quality))
+    if search:
+        pattern = _like_pattern(search)
+        query = query.filter(or_(
+            Movie.title.ilike(pattern, escape="\\"),
+            Movie.title_english.ilike(pattern, escape="\\"),
+        ))
+
+    load_options = [selectinload(Movie.images), selectinload(Movie.torrents)]
+    if include_cast:
+        load_options.append(selectinload(Movie.cast_members))
+
+    pagination = (
+        query.options(*load_options)
+        .order_by(Movie.id.asc())
+        .paginate(page=page, per_page=per_page, error_out=False)
+    )
+
+    return jsonify({
+        "page": pagination.page,
+        "per_page": pagination.per_page,
+        "total": pagination.total,
+        "pages": pagination.pages,
+        "items": [format_movie(movie, include_cast=include_cast) for movie in pagination.items],
+    })
 
 
 @movies_bp.route("/recommendation", methods=["POST"])

@@ -21,7 +21,7 @@ CORS(
         "http://localhost:5174"
     ],
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization","X-Access-Token","ngrok-skip-browser-warning",],
 )
 app.config.from_object(Config)
 app.json.sort_keys = False
